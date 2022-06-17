@@ -1,5 +1,5 @@
 using ApiCatalago.Context;
-using ApiCatalago.Services;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
@@ -7,6 +7,9 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using ApiCatalago.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.OpenApi.Models;
+using ApiCatalago.Repository;
+using Microsoft.AspNetCore.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,15 +19,48 @@ builder.Services.AddControllers()
     .AddJsonOptions(opts =>
         opts.JsonSerializerOptions
             .ReferenceHandler = ReferenceHandler.IgnoreCycles);
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 
+builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.AddSwaggerGen(c =>
+{
+    //c.SwaggerDoc("v1", new OpenApiInfo { Title = "ApiCatalago", Version = "v1" });
+
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme()
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = String.Format($@"JWT Authorization header using the Bearer scheme.
+                    Enter 'Bearer'[space]. Example: \'Bearer 12345abcdef\'")
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
+                    {
+                          new OpenApiSecurityScheme
+                          {
+                              Reference = new OpenApiReference
+                              {
+                                  Type = ReferenceType.SecurityScheme,
+                                  Id = "Bearer"
+                              }
+                          },
+                         new string[] {}
+                    }
+                });
+});
 
 string mySqlConnection = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(opt => opt.UseMySql(mySqlConnection, ServerVersion.AutoDetect(mySqlConnection)));
 
-builder.Services.AddSingleton<ITokenService>(new TokenService());
+//builder.Services.AddSingleton<ITokenService>(new TokenService());
+builder.Services.AddIdentity<IdentityUser, IdentityRole>()
+    .AddEntityFrameworkStores<AppDbContext>()
+    .AddDefaultTokenProviders();
 
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddAuthentication
                 (JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
@@ -33,40 +69,17 @@ builder.Services.AddAuthentication
                     {
                         ValidateIssuer = true,
                         ValidateAudience = true,
-                        ValidateLifetime = true,
+                        ValidateLifetime = true,                        
+                        ValidAudience = builder.Configuration["TokenConfiguration:Audience"],
+                        ValidIssuer = builder.Configuration["TokenConfiguration:Issuer"],
                         ValidateIssuerSigningKey = true,
-
-                        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-                        ValidAudience = builder.Configuration["Jwt:Audience"],
-                        IssuerSigningKey = new SymmetricSecurityKey
-                        (Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
                     };
                 });
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-app.MapPost("v1/api/login", [AllowAnonymous] (UserModel userModel, ITokenService tokenService) =>
-{
-    if (userModel == null)
-        return Results.BadRequest("Login Inválido");
-
-
-    if (userModel.UserName == "VittorMe" && userModel.Password == "123456")
-    {
-        var tokenString = tokenService.GerarToken(app.Configuration["Jwt:Key"],
-                                                  app.Configuration["Jwt:Issuer"],
-                                                  app.Configuration["Jwt:Audience"],
-                                                  userModel
-                                                  );
-        return Results.Ok(new { token = tokenString });
-    }
-    else
-        return Results.BadRequest("Login Inválido");
-}).Produces(StatusCodes.Status400BadRequest)
-            .Produces(StatusCodes.Status200OK)
-            .WithName("Login")
-            .WithTags("Autenticacao");
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -77,12 +90,12 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseAuthorization();
+
 
 app.MapControllers();
 
+app.UseRouting();
 app.UseAuthentication();
-
 app.UseAuthorization();
 
 app.Run();

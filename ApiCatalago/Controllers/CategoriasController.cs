@@ -1,19 +1,22 @@
 ﻿using ApiCatalago.Context;
 using ApiCatalago.Models;
-using Microsoft.AspNetCore.Http;
+using ApiCatalago.Repository;
+using Microsoft.AspNetCore.Authorization;
+
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApiCatalago.Controllers
 {
+    [Authorize(AuthenticationSchemes = "Bearer")]
     [Route("v1/api/[controller]")]
     [ApiController]
     public class CategoriasController : ControllerBase
     {
-        private readonly AppDbContext _context;
-        public CategoriasController(AppDbContext context)
+        private readonly IUnitOfWork _uof;
+        public CategoriasController(IUnitOfWork context)
         {
-            _context = context;
+            _uof = context;
         }
 
         [HttpGet("produtos")]
@@ -21,7 +24,7 @@ namespace ApiCatalago.Controllers
         {
             try
             {
-                return _context.Categorias.Include(p => p.Produtos).Take(10).AsNoTracking().ToList();
+                return _uof.CategoriaRepository.GetCategoriaProdutos().Take(10).ToList();
             }
             catch (Exception)
             {
@@ -31,12 +34,13 @@ namespace ApiCatalago.Controllers
         }
 
         // GET: v1/api/Categorias
+        
         [HttpGet]
         public ActionResult<IEnumerable<Categoria>> GetCategorias()
         {
             try
             {
-                return _context.Categorias.ToList() is null ? NotFound() : _context.Categorias.Take(10).AsNoTracking().ToList();
+                return _uof.CategoriaRepository.Get() is null ? NotFound() : _uof.CategoriaRepository.Get().Take(10).AsNoTracking().ToList();
             }
             catch (Exception)
             {
@@ -49,7 +53,7 @@ namespace ApiCatalago.Controllers
         {
             try
             {
-                var categoria = _context.Categorias.AsNoTracking().FirstOrDefault(x => x.CategoriaId == id);
+                var categoria = _uof.CategoriaRepository.GetByID(p => p.CategoriaId == id);
                 return categoria is null ? NotFound("Categoria não encontrada...") : categoria;
             }
             catch (Exception)
@@ -67,8 +71,8 @@ namespace ApiCatalago.Controllers
                 if (categoria is null)
                     BadRequest();
 
-                _context.Categorias.Add(categoria);
-                _context.SaveChanges();
+                _uof.CategoriaRepository.Add(categoria);
+                _uof.Commit();
                 return new CreatedAtRouteResult("ObterCategoria", new { id = categoria.CategoriaId }, categoria);
             }
             catch (Exception)
@@ -86,8 +90,8 @@ namespace ApiCatalago.Controllers
                 if (id != categoria.CategoriaId)
                     BadRequest();
 
-                _context.Entry(categoria).State = EntityState.Modified;
-                _context.SaveChanges();
+                _uof.CategoriaRepository.Update(categoria);
+                _uof.Commit();
                 return Ok(categoria);
             }
             catch (Exception)
@@ -101,12 +105,13 @@ namespace ApiCatalago.Controllers
         {
             try
             {
-                var categoria = _context.Categorias.FirstOrDefault(x => x.CategoriaId == id);
+                var categoria = _uof.CategoriaRepository.GetByID(x => x.CategoriaId == id);
+
                 if (categoria is null)
                     return NotFound("Categoria não encontrada...");
 
-                _context.Categorias.Remove(categoria);
-                _context.SaveChanges();
+                _uof.CategoriaRepository.Delete(categoria);
+                _uof.Commit();
 
                 return Ok(categoria);
             }

@@ -17,7 +17,9 @@ public class Produto
     [Required]
     [StringLength(300)]
     public string? Descricao{ get; set; }
+
     [Required]
+    [DataType(DataType.Currency)]
     [Column(TypeName ="decimal(10,2)")]
     public Decimal Preco{ get; set; }
 

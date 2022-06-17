@@ -7,30 +7,40 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ApiCatalago.Context;
 using ApiCatalago.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using ApiCatalago.Repository;
 
 namespace ApiCatalago.Controllers
 {
+    [Authorize(AuthenticationSchemes = "Bearer")]
     [Route("v1/api/[controller]")]
     [ApiController]
     public class ProdutosController : ControllerBase
     {
-        private readonly AppDbContext _context;
-
-        public ProdutosController(AppDbContext context)
+        private readonly IUnitOfWork _uof;
+        public ProdutosController(IUnitOfWork context)
         {
-            _context = context;
+            _uof = context;
+        }
+
+
+        [HttpGet("menorpreco")]
+        public ActionResult<IEnumerable<Produto>> GetProdutosPreco()
+        {
+            return _uof.ProdutoRepository.GetProdutosPorPreco().ToList();
         }
 
         // GET: v1/api/Produtoes
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Produto>>> GetProdutos()
+        public   ActionResult<IEnumerable<Produto>> GetProdutos()
         {
             try
             {
-                var produto = _context.Produtos;
+                var produto = _uof.ProdutoRepository;
                 if (produto is null)
                     NotFound();
-                return await _context.Produtos.Take(10).AsNoTracking().ToListAsync();
+                return   _uof.ProdutoRepository.Get().Take(10).AsNoTracking().ToList();
             }
             catch (Exception)
             {
@@ -40,11 +50,12 @@ namespace ApiCatalago.Controllers
         }
 
         [HttpGet("{id:int}", Name = "ObterProduto")]
-        public async Task<ActionResult<Produto>> GetProdutosId(int id)
+        
+        public  ActionResult<Produto> GetProdutosId( int id)
         {
             try
             {
-                var produto = await _context.Produtos.AsNoTracking().FirstOrDefaultAsync(p => p.ProdutoId == id);
+                var produto =  _uof.ProdutoRepository.GetByID(p => p.ProdutoId == id);
                 if (produto is null)
                     NotFound("Produto não encontrado...");
                 return produto;
@@ -57,15 +68,15 @@ namespace ApiCatalago.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult> Post(Produto produto)
+        public  ActionResult Post(Produto produto)
         {
             try
             {
                 if (produto is null)
                     return BadRequest();
 
-                _context.Produtos.Add(produto);
-                await _context.SaveChangesAsync();
+                _uof.ProdutoRepository.Add(produto);
+                 _uof.Commit();
 
                 return new CreatedAtRouteResult("ObterProduto", new { id = produto.ProdutoId }, produto);
             }
@@ -85,8 +96,8 @@ namespace ApiCatalago.Controllers
                     return BadRequest();
 
 
-                _context.Entry(produto).State = EntityState.Modified;
-                _context.SaveChanges();
+                _uof.ProdutoRepository.Update(produto);
+                _uof.Commit();
 
                 return Ok(produto);
             }
@@ -102,13 +113,13 @@ namespace ApiCatalago.Controllers
         {
             try
             {
-                var produto = _context.Produtos.FirstOrDefault(p => p.ProdutoId == id);
+                var produto = _uof.ProdutoRepository.GetByID(p => p.ProdutoId == id);
 
                 if (produto is null)
                     NotFound("Produto não encontrado...");
 
-                _context.Produtos.Remove(produto);
-                _context.SaveChanges();
+                _uof.ProdutoRepository.Delete(produto);
+                _uof.Commit();
 
                 return Ok(produto);
             }
