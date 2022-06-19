@@ -1,6 +1,7 @@
 ﻿using ApiCatalago.Context;
 using ApiCatalago.Models;
 using ApiCatalago.Repository;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ApiCatalago.Controllers
 {
-    [Authorize(AuthenticationSchemes = "Bearer")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     [Route("v1/api/[controller]")]
     [ApiController]
     public class CategoriasController : ControllerBase
@@ -18,6 +19,16 @@ namespace ApiCatalago.Controllers
         {
             _uof = context;
         }
+
+
+        [AllowAnonymous]
+        [HttpGet("teste")]
+        public string GetTeste()
+        {
+            return $"CategoriasCOntroller - {DateTime.Now.ToLongDateString().ToString()}";
+        }
+
+
 
         [HttpGet("produtos")]
         public ActionResult<IEnumerable<Categoria>> GetCategoriasProdutos()
@@ -34,7 +45,7 @@ namespace ApiCatalago.Controllers
         }
 
         // GET: v1/api/Categorias
-        
+
         [HttpGet]
         public ActionResult<IEnumerable<Categoria>> GetCategorias()
         {
@@ -82,7 +93,7 @@ namespace ApiCatalago.Controllers
 
         }
 
-        [HttpPut("id:int")]
+        [HttpPut("{id:int}")]
         public ActionResult<Categoria> Put(int id, Categoria categoria)
         {
             try
@@ -100,7 +111,7 @@ namespace ApiCatalago.Controllers
             }
 
         }
-        [HttpDelete("id:int")]
+        [HttpDelete("{id:int}")]
         public ActionResult<Categoria> Delete(int id)
         {
             try
